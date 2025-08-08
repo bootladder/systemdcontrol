@@ -56,3 +56,9 @@ vi systemdcontrol.py
 grep -r user_ser
 gpom
 gfs
+gc "config"
+sudo systemdcontrol
+sudo systemdcontrol help
+sudo systemdcontrol -h
+sudo systemdcontrol config
+sudo systemctl status sshd
