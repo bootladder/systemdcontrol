@@ -23,3 +23,13 @@ s status pview
 systemdcontrol
 s
 vi .gitignore
+git add .
+gc "stuff"
+gd
+./install.sh
+systemdcontrol
+systemdcontrol list
+s status pview
+systemdcontrol list
+systemdcontrol list --all
+gd

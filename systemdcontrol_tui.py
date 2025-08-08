@@ -33,7 +33,7 @@ class TUI:
             curses.init_pair(5, curses.COLOR_WHITE, curses.COLOR_BLUE)   # selected
     
     def refresh_services(self):
-        all_services = self.controller.get_user_services()
+        all_services = self.controller.get_services(user_only=True)
         self.services = []
         
         for service in all_services:

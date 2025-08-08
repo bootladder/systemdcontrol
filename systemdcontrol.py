@@ -11,16 +11,16 @@ import re
 
 class SystemdControl:
     def __init__(self):
-        self.user_service_paths = [
-            Path.home() / '.config/systemd/user',
-            Path('/etc/systemd/user'),
-            Path('/usr/lib/systemd/user'),
+        self.service_paths = [
+            Path('/etc/systemd/system'),
+            Path('/usr/lib/systemd/system'),
+            Path('/lib/systemd/system'),
         ]
 
-    def get_user_services(self):
+    def get_services(self, user_only=True):
         services = []
         try:
-            result = subprocess.run(['systemctl', '--user', 'list-unit-files', '--type=service', '--no-pager'], 
+            result = subprocess.run(['systemctl', 'list-unit-files', '--type=service', '--no-pager'], 
                                   capture_output=True, text=True, check=True)
             
             for line in result.stdout.split('\n')[1:]:
@@ -29,7 +29,13 @@ class SystemdControl:
                     if len(parts) >= 2:
                         service_name = parts[0]
                         if service_name.endswith('.service'):
-                            services.append(service_name)
+                            if user_only:
+                                # Only include services that are in /etc/systemd/system (user-installed)
+                                service_file = self.find_service_file(service_name)
+                                if service_file and service_file.startswith('/etc/systemd/system'):
+                                    services.append(service_name)
+                            else:
+                                services.append(service_name)
         except subprocess.CalledProcessError:
             pass
         
@@ -37,7 +43,7 @@ class SystemdControl:
 
     def get_service_status(self, service):
         try:
-            result = subprocess.run(['systemctl', '--user', 'status', service, '--no-pager'], 
+            result = subprocess.run(['systemctl', 'status', service, '--no-pager'], 
                                   capture_output=True, text=True)
             
             status_info = {
@@ -78,7 +84,7 @@ class SystemdControl:
             return None
 
     def find_service_file(self, service):
-        for path in self.user_service_paths:
+        for path in self.service_paths:
             service_file = path / service
             if service_file.exists():
                 return str(service_file)
@@ -86,7 +92,7 @@ class SystemdControl:
 
     def control_service(self, action, service):
         try:
-            result = subprocess.run(['systemctl', '--user', action, service], 
+            result = subprocess.run(['systemctl', action, service], 
                                   capture_output=True, text=True, check=True)
             return True, result.stdout
         except subprocess.CalledProcessError as e:
@@ -119,6 +125,7 @@ def main():
                        help='Action to perform')
     parser.add_argument('service', nargs='?', help='Service name (for start/stop/restart/status)')
     parser.add_argument('--all', action='store_true', help='Show all services including inactive')
+    parser.add_argument('--system', action='store_true', help='Show all system services (not just user-installed)')
     
     args = parser.parse_args()
     
@@ -130,7 +137,7 @@ def main():
         return
     
     if args.action == 'list':
-        services = controller.get_user_services()
+        services = controller.get_services(user_only=not args.system)
         print(f"{'SERVICE':<30} {'STATUS':<10} {'ENABLED':<8} {'UPTIME':<15} {'FILE PATH'}")
         print("-" * 90)
         
