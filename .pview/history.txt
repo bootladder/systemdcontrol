@@ -4,3 +4,11 @@ git remote add origin git@github.com:bootladder/systemdcontrol.git
 gs
 gitr add .
 gs
+git add .
+gc "start"
+gpom
+hc detect_monitors
+hc detect_monitors
+hc detect_monitors
+alacritty migrate
+l
