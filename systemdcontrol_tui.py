@@ -18,6 +18,7 @@ class TUI:
         self.current_selection = 0
         self.services = []
         self.last_refresh = 0
+        self.initial_load = True
         
         curses.curs_set(0)
         self.init_colors()
@@ -31,15 +32,117 @@ class TUI:
             curses.init_pair(4, curses.COLOR_CYAN, curses.COLOR_BLACK)   # header
             curses.init_pair(5, curses.COLOR_WHITE, curses.COLOR_BLUE)   # selected
     
+    def show_loading_screen(self):
+        height, width = self.stdscr.getmaxyx()
+        
+        self.stdscr.clear()
+        
+        # ASCII art logo
+        logo = [
+            "  ____            _                 ____    ____            _             _ ",
+            " / ___| _   _ ___| |_ ___ _ __ ___  |  _ \\  / ___|___  _ __ | |_ _ __ ___ | |",
+            " \\___ \\| | | / __| __/ _ \\ '_ ` _ \\ | | | || |   / _ \\| '_ \\| __| '__/ _ \\| |",
+            "  ___) | |_| \\__ \\ ||  __/ | | | | || |_| || |__| (_) | | | | |_| | | (_) | |",
+            " |____/ \\__, |___/\\__\\___|_| |_| |_||____/  \\____\\___/|_| |_|\\__|_|  \\___/|_|",
+            "        |___/                                                              "
+        ]
+        
+        try:
+            # Draw logo if terminal is big enough
+            if height > 15 and width > 75:
+                start_row = (height // 2) - 5
+                for i, line in enumerate(logo):
+                    if start_row + i < height - 1 and len(line) < width:
+                        self.stdscr.addstr(start_row + i, (width - len(line)) // 2, line, 
+                                         curses.color_pair(4) | curses.A_BOLD)
+                
+                # Loading message
+                loading_msg = "Loading services..."
+                self.stdscr.addstr(start_row + len(logo) + 2, (width - len(loading_msg)) // 2, 
+                                 loading_msg, curses.color_pair(3) | curses.A_BOLD)
+                
+                # Progress indicator
+                progress_msg = "Please wait..."
+                self.stdscr.addstr(start_row + len(logo) + 3, (width - len(progress_msg)) // 2, 
+                                 progress_msg, curses.A_DIM)
+            
+            elif height > 6 and width > 30:
+                # Simplified loading for smaller terminals
+                title = "SystemD Control"
+                loading_msg = "Loading services..."
+                
+                self.stdscr.addstr(height // 2 - 1, (width - len(title)) // 2, 
+                                 title, curses.color_pair(4) | curses.A_BOLD)
+                self.stdscr.addstr(height // 2 + 1, (width - len(loading_msg)) // 2, 
+                                 loading_msg, curses.color_pair(3))
+            
+            else:
+                # Very small terminal
+                loading_msg = "Loading..."
+                if width > len(loading_msg):
+                    self.stdscr.addstr(height // 2, (width - len(loading_msg)) // 2, 
+                                     loading_msg, curses.color_pair(3))
+                else:
+                    self.stdscr.addstr(0, 0, "Loading", curses.color_pair(3))
+            
+            self.stdscr.refresh()
+            
+        except curses.error:
+            # If drawing fails, just show simple text
+            try:
+                self.stdscr.addstr(0, 0, "Loading services...", curses.color_pair(3))
+                self.stdscr.refresh()
+            except curses.error:
+                pass
+    
     def refresh_services(self):
         user_only = self.controller.config.get_user_services_only()
         all_services = self.controller.get_services(user_only=user_only)
         self.services = []
         
-        for service in all_services:
-            status = self.controller.get_service_status(service)
-            if status:
-                self.services.append(status)
+        # Show progress during initial load
+        if self.initial_load and all_services:
+            height, width = self.stdscr.getmaxyx()
+            total_services = len(all_services)
+            
+            for i, service in enumerate(all_services):
+                status = self.controller.get_service_status(service)
+                if status:
+                    self.services.append(status)
+                
+                # Update progress every few services to avoid too much screen updating
+                if i % 3 == 0 or i == total_services - 1:
+                    try:
+                        progress_percent = int((i + 1) / total_services * 100)
+                        progress_msg = f"Loading services... {progress_percent}% ({i + 1}/{total_services})"
+                        
+                        # Find the loading message position and update it
+                        if height > 15 and width > 75:
+                            # Large terminal with logo
+                            start_row = (height // 2) - 5 + 8  # After logo + 2 lines
+                            if width > len(progress_msg):
+                                # Clear the line first
+                                self.stdscr.addstr(start_row, 0, " " * min(width - 1, 100))
+                                self.stdscr.addstr(start_row, (width - len(progress_msg)) // 2, 
+                                                 progress_msg, curses.color_pair(3) | curses.A_BOLD)
+                        elif height > 6 and width > 30:
+                            # Medium terminal
+                            progress_row = height // 2 + 1
+                            if width > len(progress_msg):
+                                self.stdscr.addstr(progress_row, 0, " " * min(width - 1, 100))
+                                self.stdscr.addstr(progress_row, (width - len(progress_msg)) // 2, 
+                                                 progress_msg, curses.color_pair(3))
+                        
+                        self.stdscr.refresh()
+                        
+                    except curses.error:
+                        pass
+        else:
+            # Normal refresh without progress display
+            for service in all_services:
+                status = self.controller.get_service_status(service)
+                if status:
+                    self.services.append(status)
         
         self.last_refresh = time.time()
     
@@ -503,7 +606,12 @@ class TUI:
             self.show_message(f"Error: {str(e)}", is_error=True)
     
     def run(self):
+        # Show loading screen during initial service discovery
+        if self.initial_load:
+            self.show_loading_screen()
+        
         self.refresh_services()
+        self.initial_load = False
         
         while True:
             refresh_interval = self.controller.config.get_refresh_interval()

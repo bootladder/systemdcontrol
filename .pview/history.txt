@@ -70,3 +70,5 @@ grep -r "\-user"
 l /usr/local
 l /usr
 vi install.sh
+gc "termial size"
+grgs
