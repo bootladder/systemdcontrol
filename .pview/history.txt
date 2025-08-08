@@ -73,3 +73,5 @@ vi install.sh
 gc "termial size"
 grgs
 gc "splash"
+gc "config reload"
+gpom -u

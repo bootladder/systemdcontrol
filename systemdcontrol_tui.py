@@ -597,6 +597,28 @@ class TUI:
         else:
             self.show_message("Failed to reset configuration", is_error=True)
     
+    def show_config_reload_message(self):
+        height, width = self.stdscr.getmaxyx()
+        
+        try:
+            self.stdscr.clear()
+            
+            # Simple reload message
+            reload_msg = "Configuration changed - reloading services..."
+            if height > 3 and width > len(reload_msg):
+                self.stdscr.addstr(height // 2, (width - len(reload_msg)) // 2, 
+                                 reload_msg, curses.color_pair(3) | curses.A_BOLD)
+            
+            spinner_msg = "Please wait..."
+            if height > 4 and width > len(spinner_msg):
+                self.stdscr.addstr(height // 2 + 2, (width - len(spinner_msg)) // 2, 
+                                 spinner_msg, curses.A_DIM)
+            
+            self.stdscr.refresh()
+            
+        except curses.error:
+            pass
+    
     def handle_service_action(self, action):
         if not self.services or self.current_selection >= len(self.services):
             return
