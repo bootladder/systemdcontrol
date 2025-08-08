@@ -12,3 +12,14 @@ hc detect_monitors
 hc detect_monitors
 alacritty migrate
 l
+git add .
+gc "progress"
+l
+vi systemdcontrol.py
+vi install.sh
+./install.sh
+systemdcontrol
+s status pview
+systemdcontrol
+s
+vi .gitignore

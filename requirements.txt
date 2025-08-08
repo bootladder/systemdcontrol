@@ -1,0 +1,9 @@
+# No external dependencies required
+# This application uses only Python standard library modules:
+# - argparse (CLI argument parsing)
+# - subprocess (running systemctl commands)
+# - pathlib (file path handling)
+# - datetime (time/date operations)  
+# - curses (terminal UI)
+# - re (regular expressions)
+# - json, os, sys, time (standard utilities)
