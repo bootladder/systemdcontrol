@@ -46,54 +46,118 @@ class TUI:
     def draw_header(self):
         height, width = self.stdscr.getmaxyx()
         
-        title = "SystemD Control - User Services"
-        self.stdscr.addstr(0, (width - len(title)) // 2, title, 
-                          curses.color_pair(4) | curses.A_BOLD)
+        # Check minimum terminal size
+        min_width = 80
+        min_height = 10
         
-        help_text = "q:quit r:refresh s:start p:stop e:restart space:status l:logs c:config"
-        if len(help_text) < width:
-            self.stdscr.addstr(1, (width - len(help_text)) // 2, help_text)
+        if width < min_width or height < min_height:
+            try:
+                self.stdscr.clear()
+                error_msg = f"Terminal too small! Need at least {min_width}x{min_height}, got {width}x{height}"
+                if width > len(error_msg):
+                    self.stdscr.addstr(height // 2, (width - len(error_msg)) // 2, error_msg, 
+                                     curses.color_pair(2) | curses.A_BOLD)
+                else:
+                    # Very small terminal, just show basic message
+                    self.stdscr.addstr(0, 0, "Terminal too small!", curses.color_pair(2))
+                    if height > 1:
+                        self.stdscr.addstr(1, 0, "Resize window", curses.color_pair(2))
+                self.stdscr.refresh()
+            except curses.error:
+                pass
+            return False
         
-        filter_text = "Showing: All your services"
-        self.stdscr.addstr(2, 2, filter_text, curses.color_pair(3))
+        try:
+            title = "SystemD Control - User Services"
+            if width > len(title):
+                self.stdscr.addstr(0, (width - len(title)) // 2, title, 
+                                  curses.color_pair(4) | curses.A_BOLD)
+            
+            help_text = "q:quit r:refresh s:start p:stop e:restart space:status l:logs c:config"
+            if len(help_text) < width:
+                self.stdscr.addstr(1, (width - len(help_text)) // 2, help_text)
+            
+            filter_text = "Showing: All your services"
+            if width > len(filter_text) + 2:
+                self.stdscr.addstr(2, 2, filter_text, curses.color_pair(3))
+            
+            # Column headers with bounds checking
+            headers = [
+                (2, "SERVICE"),
+                (32, "STATUS"), 
+                (42, "ENABLED"),
+                (52, "UPTIME"),
+                (68, "MEMORY")
+            ]
+            
+            for col, header in headers:
+                if col + len(header) < width and height > 4:
+                    self.stdscr.addstr(4, col, header, curses.A_BOLD)
+            
+            if width > 6 and height > 5:
+                self.stdscr.hline(5, 2, '-', min(width - 4, width - 2))
         
-        self.stdscr.addstr(4, 2, "SERVICE", curses.A_BOLD)
-        self.stdscr.addstr(4, 32, "STATUS", curses.A_BOLD)
-        self.stdscr.addstr(4, 42, "ENABLED", curses.A_BOLD)
-        self.stdscr.addstr(4, 52, "UPTIME", curses.A_BOLD)
-        self.stdscr.addstr(4, 68, "MEMORY", curses.A_BOLD)
+        except curses.error:
+            # If any drawing fails, show error message
+            try:
+                self.stdscr.clear()
+                error_msg = "Display error - resize terminal"
+                if width > len(error_msg):
+                    self.stdscr.addstr(0, 0, error_msg, curses.color_pair(2))
+            except curses.error:
+                pass
+            return False
         
-        self.stdscr.hline(5, 2, '-', width - 4)
+        return True
     
     def draw_services(self):
         height, width = self.stdscr.getmaxyx()
         start_row = 6
         max_services = height - start_row - 2
         
+        # Don't draw services if terminal is too small
+        if width < 80 or height < 10:
+            return
+        
         if self.current_selection >= len(self.services):
             self.current_selection = max(0, len(self.services) - 1)
         
-        for i, service in enumerate(self.services[:max_services]):
-            row = start_row + i
-            
-            name = service['name'][:28]
-            status_text = 'active' if service['active'] else 'inactive'
-            enabled_text = 'yes' if service['enabled'] else 'no'
-            uptime = self.controller.format_uptime(service['since'])[:14]
-            memory = service['memory'][:8] if service['memory'] else 'N/A'
-            
-            color = curses.color_pair(1) if service['active'] else curses.color_pair(2)
-            attr = curses.A_REVERSE if i == self.current_selection else 0
-            
-            if i == self.current_selection:
-                self.stdscr.addstr(row, 1, f" {name:<28} {status_text:<8} {enabled_text:<6} {uptime:<14} {memory:<8} ", 
-                                 curses.color_pair(5) | curses.A_BOLD)
-            else:
-                self.stdscr.addstr(row, 2, name, color | attr)
-                self.stdscr.addstr(row, 32, status_text, color | attr)
-                self.stdscr.addstr(row, 42, enabled_text, attr)
-                self.stdscr.addstr(row, 52, uptime, attr)
-                self.stdscr.addstr(row, 68, memory, attr)
+        try:
+            for i, service in enumerate(self.services[:max_services]):
+                row = start_row + i
+                if row >= height - 1:  # Don't draw past screen
+                    break
+                
+                name = service['name'][:min(28, width - 50)]
+                status_text = 'active' if service['active'] else 'inactive'
+                enabled_text = 'yes' if service['enabled'] else 'no'
+                uptime = self.controller.format_uptime(service['since'])[:14]
+                memory = service['memory'][:8] if service['memory'] else 'N/A'
+                
+                color = curses.color_pair(1) if service['active'] else curses.color_pair(2)
+                attr = curses.A_REVERSE if i == self.current_selection else 0
+                
+                if i == self.current_selection:
+                    selected_line = f" {name:<28} {status_text:<8} {enabled_text:<6} {uptime:<14} {memory:<8} "
+                    if len(selected_line) < width:
+                        self.stdscr.addstr(row, 1, selected_line, 
+                                         curses.color_pair(5) | curses.A_BOLD)
+                else:
+                    # Draw each column with bounds checking
+                    if width > 30:
+                        self.stdscr.addstr(row, 2, name, color | attr)
+                    if width > 40:
+                        self.stdscr.addstr(row, 32, status_text, color | attr)
+                    if width > 50:
+                        self.stdscr.addstr(row, 42, enabled_text, attr)
+                    if width > 60:
+                        self.stdscr.addstr(row, 52, uptime, attr)
+                    if width > 75:
+                        self.stdscr.addstr(row, 68, memory, attr)
+        
+        except curses.error:
+            # Silently handle drawing errors for very small terminals
+            pass
     
     def show_status_detail(self, service_status):
         height, width = self.stdscr.getmaxyx()
@@ -157,6 +221,11 @@ class TUI:
         
         height, width = self.stdscr.getmaxyx()
         
+        # Check if terminal is too small for log viewer
+        if width < 40 or height < 8:
+            self.show_message("Terminal too small for log viewer", is_error=True)
+            return
+        
         # Create a full-screen log viewer
         log_win = curses.newwin(height - 2, width - 2, 1, 1)
         log_win.box()
@@ -213,6 +282,12 @@ class TUI:
     
     def show_config_screen(self):
         height, width = self.stdscr.getmaxyx()
+        
+        # Check if terminal is too small for config screen
+        if width < 60 or height < 15:
+            self.show_message("Terminal too small for config screen", is_error=True)
+            return
+        
         config = self.controller.config
         
         config_win = curses.newwin(height - 2, width - 2, 1, 1)
@@ -436,12 +511,18 @@ class TUI:
                 self.refresh_services()
             
             self.stdscr.clear()
-            self.draw_header()
-            self.draw_services()
+            header_ok = self.draw_header()
             
-            height, width = self.stdscr.getmaxyx()
-            status_line = f"Services: {len(self.services)} | Selected: {self.current_selection + 1 if self.services else 0}"
-            self.stdscr.addstr(height - 1, 2, status_line, curses.A_DIM)
+            if header_ok:
+                self.draw_services()
+                
+                height, width = self.stdscr.getmaxyx()
+                status_line = f"Services: {len(self.services)} | Selected: {self.current_selection + 1 if self.services else 0}"
+                try:
+                    if width > len(status_line) + 2:
+                        self.stdscr.addstr(height - 1, 2, status_line, curses.A_DIM)
+                except curses.error:
+                    pass
             
             self.stdscr.refresh()
             

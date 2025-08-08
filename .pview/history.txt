@@ -62,3 +62,11 @@ sudo systemdcontrol help
 sudo systemdcontrol -h
 sudo systemdcontrol config
 sudo systemctl status sshd
+gc "works"
+gpom
+grep -r "--user"
+grep -r "user"
+grep -r "\-user"
+l /usr/local
+l /usr
+vi install.sh
