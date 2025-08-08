@@ -33,3 +33,20 @@ s status pview
 systemdcontrol list
 systemdcontrol list --all
 gd
+gc "user services"
+./install.sh
+systemdcontrol list
+systemdcontrol list --user
+systemdcontrol --user
+systemdcontrol tui
+systemdcontrol tui --all
+systemdcontrol list --all
+systemdcontrol tui
+systemdcontrol tui --all
+sudo systemdcontrol
+sudo systemdcontrol
+gd
+claude
+claude
+systemctl --user
+systemctl --user status

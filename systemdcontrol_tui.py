@@ -17,7 +17,6 @@ class TUI:
         self.controller = controller
         self.current_selection = 0
         self.services = []
-        self.show_inactive = False
         self.last_refresh = 0
         
         curses.curs_set(0)
@@ -39,8 +38,7 @@ class TUI:
         for service in all_services:
             status = self.controller.get_service_status(service)
             if status:
-                if self.show_inactive or status['active']:
-                    self.services.append(status)
+                self.services.append(status)
         
         self.last_refresh = time.time()
     
@@ -51,11 +49,11 @@ class TUI:
         self.stdscr.addstr(0, (width - len(title)) // 2, title, 
                           curses.color_pair(4) | curses.A_BOLD)
         
-        help_text = "q:quit r:refresh t:toggle inactive s:start p:stop e:restart space:status"
+        help_text = "q:quit r:refresh s:start p:stop e:restart space:status l:logs"
         if len(help_text) < width:
             self.stdscr.addstr(1, (width - len(help_text)) // 2, help_text)
         
-        filter_text = f"Showing: {'All services' if self.show_inactive else 'Active only'}"
+        filter_text = "Showing: All your services"
         self.stdscr.addstr(2, 2, filter_text, curses.color_pair(3))
         
         self.stdscr.addstr(4, 2, "SERVICE", curses.A_BOLD)
@@ -140,6 +138,78 @@ class TUI:
         msg_win.refresh()
         msg_win.getch()
     
+    def show_brief_message(self, message):
+        height, width = self.stdscr.getmaxyx()
+        
+        # Show message in status line briefly
+        self.stdscr.addstr(height - 1, 2, message[:width-4], curses.color_pair(1) | curses.A_BOLD)
+        self.stdscr.refresh()
+        time.sleep(0.3)
+        
+        # Clear the message
+        self.stdscr.addstr(height - 1, 2, " " * (width - 4))
+        self.stdscr.refresh()
+    
+    def show_service_logs(self, service_status):
+        service_name = service_status['name']
+        logs = self.controller.get_service_logs(service_name, lines=100)
+        
+        height, width = self.stdscr.getmaxyx()
+        
+        # Create a full-screen log viewer
+        log_win = curses.newwin(height - 2, width - 2, 1, 1)
+        log_win.box()
+        
+        # Header
+        title = f"Logs for {service_name} (↑/↓ scroll, q to close)"
+        log_win.addstr(1, 2, title[:width-6], curses.A_BOLD)
+        log_win.hline(2, 1, '-', width - 4)
+        
+        # Calculate display area
+        display_height = height - 6  # Leave room for box, header, and controls
+        scroll_pos = max(0, len(logs) - display_height)  # Start at bottom
+        
+        while True:
+            log_win.clear()
+            log_win.box()
+            log_win.addstr(1, 2, title[:width-6], curses.A_BOLD)
+            log_win.hline(2, 1, '-', width - 4)
+            
+            # Show logs
+            for i in range(display_height):
+                line_idx = scroll_pos + i
+                if line_idx < len(logs):
+                    log_line = logs[line_idx][:width-6]  # Truncate long lines
+                    try:
+                        log_win.addstr(3 + i, 2, log_line)
+                    except curses.error:
+                        pass  # Ignore if we can't draw at this position
+            
+            # Show scroll indicator
+            if len(logs) > display_height:
+                scroll_info = f"Line {scroll_pos + 1}-{min(scroll_pos + display_height, len(logs))} of {len(logs)}"
+                log_win.addstr(height - 3, width - len(scroll_info) - 4, scroll_info, curses.A_DIM)
+            
+            log_win.refresh()
+            
+            # Handle input
+            key = log_win.getch()
+            
+            if key == ord('q') or key == 27:  # q or ESC
+                break
+            elif key == curses.KEY_UP or key == ord('k'):
+                scroll_pos = max(0, scroll_pos - 1)
+            elif key == curses.KEY_DOWN or key == ord('j'):
+                scroll_pos = min(max(0, len(logs) - display_height), scroll_pos + 1)
+            elif key == curses.KEY_NPAGE:  # Page Down
+                scroll_pos = min(max(0, len(logs) - display_height), scroll_pos + display_height)
+            elif key == curses.KEY_PPAGE:  # Page Up
+                scroll_pos = max(0, scroll_pos - display_height)
+            elif key == curses.KEY_HOME:
+                scroll_pos = 0
+            elif key == curses.KEY_END:
+                scroll_pos = max(0, len(logs) - display_height)
+    
     def handle_service_action(self, action):
         if not self.services or self.current_selection >= len(self.services):
             return
@@ -154,8 +224,7 @@ class TUI:
             success, output = self.controller.control_service(action, service_name)
             
             if success:
-                self.show_message(f"Service {service_name} {action}ed successfully")
-                time.sleep(1)
+                self.show_brief_message(f"Service {service_name} {action}ed successfully")
                 self.refresh_services()
             else:
                 self.show_message(f"Error {action}ing {service_name}: {output}", is_error=True)
@@ -189,10 +258,6 @@ class TUI:
                 elif key == ord('r'):
                     self.refresh_services()
                 
-                elif key == ord('t'):
-                    self.show_inactive = not self.show_inactive
-                    self.refresh_services()
-                    self.current_selection = 0
                 
                 elif key == curses.KEY_UP or key == ord('k'):
                     self.current_selection = max(0, self.current_selection - 1)
@@ -212,6 +277,10 @@ class TUI:
                 
                 elif key == ord('e'):  # restart
                     self.handle_service_action('restart')
+                
+                elif key == ord('l'):  # logs
+                    if self.services and self.current_selection < len(self.services):
+                        self.show_service_logs(self.services[self.current_selection])
             
             except KeyboardInterrupt:
                 break

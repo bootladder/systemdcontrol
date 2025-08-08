@@ -97,6 +97,14 @@ class SystemdControl:
             return True, result.stdout
         except subprocess.CalledProcessError as e:
             return False, e.stderr
+    
+    def get_service_logs(self, service, lines=50):
+        try:
+            result = subprocess.run(['journalctl', '-u', service, '-n', str(lines), '--no-pager'], 
+                                  capture_output=True, text=True, check=True)
+            return result.stdout.strip().split('\n') if result.stdout.strip() else []
+        except subprocess.CalledProcessError:
+            return ["No logs available or service not found"]
 
     def format_uptime(self, since_str):
         if not since_str:
@@ -121,8 +129,8 @@ class SystemdControl:
 
 def main():
     parser = argparse.ArgumentParser(description='User-friendly systemd service control tool')
-    parser.add_argument('action', nargs='?', choices=['list', 'start', 'stop', 'restart', 'status', 'tui'], 
-                       help='Action to perform')
+    parser.add_argument('action', nargs='?', choices=['list', 'start', 'stop', 'restart', 'status'], 
+                       help='Action to perform (defaults to TUI mode)')
     parser.add_argument('service', nargs='?', help='Service name (for start/stop/restart/status)')
     parser.add_argument('--all', action='store_true', help='Show all services including inactive')
     parser.add_argument('--system', action='store_true', help='Show all system services (not just user-installed)')
@@ -131,7 +139,7 @@ def main():
     
     controller = SystemdControl()
     
-    if not args.action or args.action == 'tui':
+    if not args.action:
         from systemdcontrol_tui import run_tui
         run_tui(controller)
         return
