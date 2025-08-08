@@ -8,7 +8,7 @@ when the service started, uptime
 
 it should be nice UI rendered in a terminal
 
-it's a command line tool.
+it's a command line tool and also a TUI which prompts the user for menu
 
 to install it, run install.sh
 
