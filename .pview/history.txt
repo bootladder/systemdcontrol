@@ -50,3 +50,9 @@ claude
 claude
 systemctl --user
 systemctl --user status
+gc "More"
+claude
+vi systemdcontrol.py
+grep -r user_ser
+gpom
+gfs
