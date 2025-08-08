@@ -72,3 +72,4 @@ l /usr
 vi install.sh
 gc "termial size"
 grgs
+gc "splash"

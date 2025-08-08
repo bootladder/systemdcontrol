@@ -13,6 +13,11 @@ from config import Config
 class SystemdControl:
     def __init__(self):
         self.config = Config()
+        self.reload_config()
+    
+    def reload_config(self):
+        """Reload configuration and update service paths"""
+        self.config = Config()
         self.service_paths = [Path(p) for p in self.config.get_service_directories()]
 
     def get_services(self, user_only=None):

@@ -465,18 +465,31 @@ class TUI:
                 ]
     
     def edit_config_option(self, selection, config):
+        config_changed = False
+        
         if selection == 0:  # Service Directories
+            old_dirs = config.get_service_directories()[:]
             self.edit_service_directories(config)
+            new_dirs = config.get_service_directories()
+            config_changed = old_dirs != new_dirs
         elif selection == 1:  # Recursive Search
             current = config.get_recursive_search()
             config.set_recursive_search(not current)
             self.show_brief_message(f"Recursive search: {'enabled' if not current else 'disabled'}")
+            config_changed = True
         elif selection == 2:  # User Services Only
             current = config.get_user_services_only()
             config.set_user_services_only(not current)
             self.show_brief_message(f"User services only: {'enabled' if not current else 'disabled'}")
+            config_changed = True
         elif selection == 3:  # Refresh Interval
+            old_interval = config.get_refresh_interval()
             self.edit_refresh_interval(config)
+            config_changed = old_interval != config.get_refresh_interval()
+        
+        # Reload controller config if service-related settings changed
+        if config_changed and selection in [0, 1, 2]:  # Service dirs, recursive, or user-only
+            self.controller.reload_config()
     
     def edit_service_directories(self, config):
         height, width = self.stdscr.getmaxyx()
@@ -579,6 +592,7 @@ class TUI:
     
     def reset_config(self, config):
         if config.reset_to_defaults():
+            self.controller.reload_config()  # Reload controller with new config
             self.show_brief_message("Configuration reset to defaults")
         else:
             self.show_message("Failed to reset configuration", is_error=True)
@@ -668,8 +682,14 @@ class TUI:
                         self.show_service_logs(self.services[self.current_selection])
                 
                 elif key == ord('c'):  # config
+                    old_config_hash = hash(str(self.controller.config.config))
                     self.show_config_screen()
-                    self.refresh_services()  # Refresh in case config changed
+                    new_config_hash = hash(str(self.controller.config.config))
+                    
+                    # Force refresh if config changed
+                    if old_config_hash != new_config_hash:
+                        self.show_config_reload_message()
+                        self.refresh_services()
             
             except KeyboardInterrupt:
                 break
